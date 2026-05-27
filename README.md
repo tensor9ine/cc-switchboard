@@ -105,7 +105,6 @@ Because `terminal-notifier` is the originating app (not Chrome), macOS doesn't a
 - macOS only (iTerm Python API, AppleScript, terminal-notifier, `st_birthtime`).
 - Inside tmux: if **two** claudes run in the same cwd inside the same project dir AND have nearly identical start times, the PID-to-session matcher can be off.
 - Ghostty has no per-session env var equivalent to `ITERM_SESSION_ID`, so multi-claude-same-cwd disambiguation in Ghostty falls back to "first matching terminal."
-- Run only one browser tab at a time — SSE subscribers don't dedupe notifications.
 
 ## Files
 
