@@ -67,19 +67,6 @@ uv tool install .
 
 Then `cc-switchboard` is available on your `PATH` from any directory.
 
-### Run on login
-
-Edit `com.local.cc-switchboard.plist` and replace the absolute paths under `ProgramArguments` with your `uv` binary path and your clone's `server.py` path (launchd doesn't expand `$HOME`). Then:
-
-```sh
-cp com.local.cc-switchboard.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.local.cc-switchboard.plist
-```
-
-Logs go to `/tmp/cc-switchboard.{out,err}.log`. Unload with `launchctl unload <path>`.
-
-Keep only **one** browser tab open at a time; multiple tabs each subscribe to SSE and duplicate notifications.
-
 ## How it works
 
 ### Listing sessions
