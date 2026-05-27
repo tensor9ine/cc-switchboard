@@ -1,4 +1,4 @@
-# Claude Session Viewer
+# cc-switchboard
 
 A local browser app that lists every Claude Code session you've ever run, marks the ones that are currently alive, and lets you click any row to jump directly to the iTerm or Ghostty pane (and tmux pane, if applicable) where it lives.
 
