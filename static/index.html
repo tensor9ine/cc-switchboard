@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>cc-switchboard</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161922;
+    --border: #232734;
+    --text: #e6e8ee;
+    --muted: #8a91a3;
+    --accent: #6ee7b7;
+    --live: #22c55e;
+    --working: #22c55e;
+    --idle: #f59e0b;
+    --hover: #1d2230;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px;
+  }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0.2px; }
+  .count { color: var(--muted); font-size: 13px; }
+  input[type=search] {
+    flex: 1; max-width: 360px;
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); padding: 7px 10px; border-radius: 8px;
+    font: inherit;
+  }
+  input[type=search]:focus { outline: none; border-color: var(--accent); }
+  .filter {
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); padding: 6px 10px; border-radius: 8px;
+    cursor: pointer; font: inherit;
+  }
+  .filter.on { border-color: var(--live); color: var(--live); }
+  .project {
+    margin-bottom: 18px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--panel); overflow: hidden;
+  }
+  .project-head {
+    padding: 10px 14px; background: #11141c;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
+  }
+  .project-path { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: var(--text); }
+  .project-meta { color: var(--muted); font-size: 12px; }
+  .sessions { display: none; }
+  .project.open .sessions { display: block; }
+  .row {
+    display: grid;
+    grid-template-columns: 14px 1fr 110px 60px 22px;
+    gap: 10px;
+    align-items: start;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .kill {
+    color: #4b5263;
+    font-size: 14px;
+    padding-top: 1px;
+    text-align: center;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .row:hover .kill { color: #8a91a3; }
+  .kill:hover { color: #ef4444 !important; background: #2a1015; }
+  .kill.invisible { visibility: hidden; }
+  .row:first-child { border-top: none; }
+  .row:hover { background: var(--hover); }
+  .dot { margin-top: 6px; }
+  .term-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: lowercase;
+    letter-spacing: 0.3px;
+    vertical-align: 2px;
+  }
+  .term-badge.iterm { background: #1e3a5f; color: #93c5fd; }
+  .term-badge.ghostty { background: #3d2a5a; color: #c4b5fd; }
+  .term-badge.tmux { background: #1f3a2c; color: #86efac; }
+  .recap {
+    white-space: pre-wrap; word-wrap: break-word;
+    font-size: 13px; line-height: 1.5; color: var(--text);
+  }
+  .recap.fallback { color: var(--muted); font-style: italic; }
+  .recap .marker { color: var(--accent); margin-right: 4px; }
+  .when, .msgs { padding-top: 2px; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #2a3145;
+  }
+  .row.working .dot {
+    background: var(--working);
+    box-shadow: 0 0 6px var(--working);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .row.idle .dot { background: var(--idle); box-shadow: 0 0 4px var(--idle); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+  .prompt {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text);
+  }
+  .prompt .summary { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .when { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+  .msgs { color: var(--muted); font-size: 12px; text-align: right; }
+  .empty { color: var(--muted); padding: 20px; text-align: center; }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 10px 16px; border-radius: 8px; color: var(--text);
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>cc-switchboard</h1>
+  <span class="count" id="count"></span>
+  <input type="search" id="q" placeholder="filter by prompt, project, branch…">
+  <button class="filter" id="liveOnly">Live only</button>
+  <button class="filter" id="notifyToggle" title="Notify when working → idle">🔔 off</button>
+  <button class="filter" id="refresh">↻</button>
+</header>
+<div id="root"></div>
+<div class="toast" id="toast"></div>
+<script>
+let sessions = [];
+let liveOnly = localStorage.getItem("liveOnly") !== "0";  // default on
+let query = "";
+
+async function load() {
+  const r = await fetch("/api/sessions");
+  sessions = await r.json();
+  render();
+}
+
+let evtSource = null;
+let notifyEnabled = false;        // mirrors server-side setting via SSE payload
+let bootId = null;
+
+function connectEvents() {
+  if (evtSource) evtSource.close();
+  evtSource = new EventSource("/api/events");
+  evtSource.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      const next = msg.sessions || [];
+      if (msg.boot) {
+        if (bootId && bootId !== msg.boot) {
+          console.log("[boot] server restarted, reloading");
+          location.reload();
+          return;
+        }
+        bootId = msg.boot;
+      }
+      if (msg.settings && typeof msg.settings.notify_enabled === "boolean") {
+        notifyEnabled = msg.settings.notify_enabled;
+        updateNotifyButton();
+      }
+      sessions = next;
+      render();
+    } catch (err) {
+      console.error("event parse", err);
+    }
+  };
+  evtSource.onerror = () => {
+    // EventSource auto-reconnects; nothing to do
+  };
+}
+
+function shortProject(s) {
+  const p = s.project_path || s.project_dir;
+  return p.replace(/^\/Users\/[^/]+\//, "~/").replace(/^\/Users\/[^/]+$/, "~");
+}
+
+function updateNotifyButton() {
+  const btn = document.getElementById("notifyToggle");
+  if (!btn) return;
+  btn.textContent = notifyEnabled ? "🔔 on" : "🔔 off";
+  btn.classList.toggle("on", notifyEnabled);
+}
+
+async function toggleNotify() {
+  const want = !notifyEnabled;
+  try {
+    const r = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notify_enabled: want }),
+    });
+    const j = await r.json();
+    notifyEnabled = !!j.notify_enabled;
+    updateNotifyButton();
+  } catch (e) {
+    toast("notify toggle failed: " + e);
+  }
+}
+
+function fmtAgo(mtime) {
+  const s = Math.floor(Date.now() / 1000 - mtime);
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s/60) + "m";
+  if (s < 86400) return Math.floor(s/3600) + "h";
+  return Math.floor(s/86400) + "d";
+}
+
+function shortProjectPath(p, dir) {
+  if (p) return p.replace(/^\/Users\/[^/]+/, "~");
+  return dir;
+}
+
+function render() {
+  const root = document.getElementById("root");
+  const filtered = sessions.filter(s => {
+    if (liveOnly && !s.is_live) return false;
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (s.first_prompt || "").toLowerCase().includes(q)
+      || (s.summary || "").toLowerCase().includes(q)
+      || (s.project_path || "").toLowerCase().includes(q)
+      || (s.git_branch || "").toLowerCase().includes(q);
+  });
+
+  const byProject = new Map();
+  for (const s of filtered) {
+    const key = s.project_path || s.project_dir;
+    if (!byProject.has(key)) byProject.set(key, []);
+    byProject.get(key).push(s);
+  }
+
+  const working = sessions.filter(s => s.activity === "working").length;
+  const idle = sessions.filter(s => s.activity === "idle").length;
+  document.getElementById("count").textContent =
+    `${sessions.length} total · ${working} working · ${idle} idle`;
+
+  if (filtered.length === 0) {
+    root.innerHTML = '<div class="empty">no sessions match</div>';
+    return;
+  }
+
+  const projects = Array.from(byProject.entries())
+    .sort((a, b) => b[1][0].file_mtime - a[1][0].file_mtime);
+
+  root.innerHTML = "";
+  for (const [path, list] of projects) {
+    const hasLive = list.some(s => s.is_live);
+    const div = document.createElement("div");
+    div.className = "project" + ((hasLive || query || liveOnly) ? " open" : "");
+    const head = document.createElement("div");
+    head.className = "project-head";
+    head.innerHTML = `
+      <span class="project-path">${escapeHtml(shortProjectPath(list[0].project_path, list[0].project_dir))}</span>
+      <span class="project-meta">${list.length} session${list.length>1?'s':''}${hasLive ? ' · <span style="color:var(--live)">●</span> live' : ''}</span>
+    `;
+    head.onclick = () => div.classList.toggle("open");
+    div.appendChild(head);
+
+    const rows = document.createElement("div");
+    rows.className = "sessions";
+    for (const s of list) {
+      const row = document.createElement("div");
+      const activityCls = s.activity === "working" ? "working" : s.activity === "idle" ? "idle" : "";
+      row.className = "row" + (s.is_live ? " live " + activityCls : "");
+      row.title = s.session_id + (s.live_tty ? ` · ${s.live_tty}` : "") + (s.activity ? ` · ${s.activity}` : "");
+      const hasRecap = s.recap && !s.recap.startsWith("[last ");
+      let termBadge = "";
+      if (s.is_live) {
+        if (s.live_term_program === "ghostty") {
+          termBadge = '<span class="term-badge ghostty">ghostty</span>';
+        } else if (s.live_term_program === "iTerm.app") {
+          termBadge = '<span class="term-badge iterm">iTerm</span>';
+        }
+        if (s.live_tmux_target) {
+          termBadge += `<span class="term-badge tmux" title="tmux pane ${escapeHtml(s.live_tmux_target)}">tmux ${escapeHtml(s.live_tmux_target)}</span>`;
+        }
+      }
+      const recapHtml = s.recap
+        ? `<span class="recap${hasRecap ? "" : " fallback"}">${hasRecap ? '<span class="marker">※</span>' : ""}${escapeHtml(s.recap)}${termBadge}</span>`
+        : `<span class="recap fallback">(no messages)${termBadge}</span>`;
+      const deleteBtn = (!s.is_live && s.jsonl_path)
+        ? `<span class="kill" title="Move session jsonl to Trash">×</span>`
+        : `<span class="kill invisible">×</span>`;
+      row.innerHTML = `
+        <span class="dot"></span>
+        ${recapHtml}
+        <span class="when">${fmtAgo(s.file_mtime)} ago</span>
+        <span class="msgs">${s.message_count || ""}</span>
+        ${deleteBtn}
+      `;
+      row.onclick = () => focusSession(s);
+      const delEl = row.querySelector(".kill:not(.invisible)");
+      if (delEl) {
+        delEl.onclick = (e) => {
+          e.stopPropagation();
+          deleteSession(s);
+        };
+      }
+      rows.appendChild(row);
+    }
+    div.appendChild(rows);
+    root.appendChild(div);
+  }
+}
+
+async function deleteSession(s) {
+  const label = shortProject(s);
+  const preview = (s.recap || "").slice(0, 80).replace(/\s+/g, " ");
+  if (!confirm(`Move to Trash?\n\n${label}\n${preview}`)) return;
+  try {
+    const r = await fetch("/api/delete/" + encodeURIComponent(s.session_id), { method: "POST" });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      toast(`delete failed: ${j.detail || r.status}`);
+      return;
+    }
+    toast("moved to Trash");
+  } catch (e) {
+    toast("delete error: " + e);
+  }
+}
+
+async function focusSession(s) {
+  toast(s.is_live ? `focusing ${s.live_tty}…` : `resuming in new tab…`);
+  try {
+    const r = await fetch("/api/focus/" + encodeURIComponent(s.session_id), { method: "POST" });
+    const j = await r.json();
+    toast(j.action === "focused" ? `focused ${j.tty}` : `opened new tab in ${j.cwd}`);
+  } catch (e) {
+    toast("error: " + e);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+document.getElementById("q").addEventListener("input", e => {
+  query = e.target.value;
+  render();
+});
+const liveOnlyBtn = document.getElementById("liveOnly");
+liveOnlyBtn.classList.toggle("on", liveOnly);
+liveOnlyBtn.addEventListener("click", e => {
+  liveOnly = !liveOnly;
+  localStorage.setItem("liveOnly", liveOnly ? "1" : "0");
+  e.target.classList.toggle("on", liveOnly);
+  render();
+});
+document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("notifyToggle").addEventListener("click", toggleNotify);
+
+updateNotifyButton();
+
+connectEvents();
+</script>
+</body>
+</html>

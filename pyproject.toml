@@ -1,0 +1,27 @@
+[project]
+name = "cc-switchboard"
+version = "0.2.0"
+description = "Browser-based switchboard for Claude Code sessions — live status, recap, and click-to-jump-to-pane across iTerm, Ghostty, and tmux."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "iterm2",
+]
+
+[project.urls]
+Homepage = "https://github.com/tensor9ine/cc-switchboard"
+Repository = "https://github.com/tensor9ine/cc-switchboard"
+Issues = "https://github.com/tensor9ine/cc-switchboard/issues"
+
+[project.scripts]
+cc-switchboard = "server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+include = ["server.py", "static"]

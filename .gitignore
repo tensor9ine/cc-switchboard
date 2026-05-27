@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+
+# Persisted user settings (not for VCS)
+.claude-session-viewer.json
